@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 # Declare constants
 
 # time step (s)
-dt = 60
+dt = 600
 # diffusivity parameter (m^2/s)
 #Kz = 0.01 # Fast mixing
 #Kz = 0.000001 # Slow mixing
@@ -42,11 +42,14 @@ dlt_fn = math.sin(dlt*2*math.pi/86400)
 I_avg = I_max*dlt_fn/(dlt_fn-1)
 #I_avg = I_max
 # number of timesteps
-niter = 10080
+niter = 100800
 # number of phytoplankton cells
 npart = 10
 
 # -------------- #
+
+#
+#
 
 # Declare variables
 
@@ -65,6 +68,7 @@ I_mem = numpy.array([[0.0]*niter]*npart)
 
 def run_model(D,Kz,gamma):
     # calculate independent trajectory for each phytoplankton cell
+    I_mld = I_max*(1-numpy.exp(-k*D))/(k*D)
     for i in range (0,npart):
         # initialise depth, using uniformly distributed random number
         z[i,0] = random.uniform(0,D)
@@ -90,33 +94,37 @@ def run_model(D,Kz,gamma):
                 I_mem[i,t] = I[i,t]
             else:
                 # update irradiance memory using acclimation timescale gamma
-                I_mem[i,t] = I_mem[i,t-1] + (I[i,t] - I_mem[i,t-1])/gamma
+                I_mem[i,t] = I_mem[i,t-1] + dt*(I[i,t] - I_mem[i,t-1])/gamma
                 # update position memory
                 z_mem[i,t] = - math.log(I_mem[i,t]/I0)/k
-    return z, I, I_mem 
+    return z, I, I_mem, I_mld 
 
 #for D in (10,20,30,40,50):
 count=-1
 dimless = numpy.zeros((27))
+I_mld_g = numpy.zeros((27))
 z_fin   = numpy.zeros((npart,27))
 I_fin   = numpy.zeros((npart,27))
 m_fin   = numpy.zeros((npart,27))
-for D in (20,30,40):
-    for Kz_exp in (2,3,4):
+for D in (19,20,21):
+    for Kz_exp in (0.9,1.0,1.1):
         Kz = 1/numpy.power(10,Kz_exp)
-        for gamma_exp in (12,24,48):
+        for gamma_exp in (23,24,25):
             count          = count+1
             gamma          = gamma_exp*3600
             #gamma   = 3600*numpy.power(2,gamma_exp)
             dimless[count] = D*D/(Kz*gamma)
+            print(dimless)
             dimless[count] = dimless[count]/(dimless[count]+10)
             results        = run_model(D,Kz,gamma)
             z              = results[0]
             I              = results[1]
             I_mem          = results[2]
+            I_mld_g[count] = results[3]
             z_fin[:,count] = z[:,-1]
             I_fin[:,count] = I[:,-1]
             m_fin[:,count] = I_mem[:,-1]
+
 
 print(dimless)
 
@@ -186,6 +194,10 @@ epsilon = ncfile.createVariable('epsilon',numpy.float64,('scale'))
 epsilon.units = ''
 epsilon.long_name = 'Ratio of mixing timescale to adaptation timescale'
 
+irr_mld = ncfile.createVariable('irr_mld',numpy.float64,('scale'))
+irr_mld.units = 'W/(m²)'
+irr_mld.long_name = 'Average light in mixed layer'
+
 position = ncfile.createVariable('position',numpy.float64,('particle','scale'))
 position.units = 'metres'
 
@@ -199,7 +211,7 @@ irr_memory.units = 'W/(m^2)'
 
 particle[:] = range(npart)
 epsilon[:] = dimless[:]
-
+irr_mld[:] = I_mld_g[:]
 position[:,:] = z_fin
 irradiance[:,:] = I_fin
 irr_memory[:,:] = m_fin
