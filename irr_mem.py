@@ -45,6 +45,10 @@ I_avg = I_max*dlt_fn/(dlt_fn-1)
 niter = 100800
 # number of phytoplankton cells
 npart = 10
+# ratio of mixing to adaptation timescale at which
+# the irradiance memory is equally influenced by
+# instantaneous and depth averaged irradiance
+K_scale = 10
 
 # -------------- #
 
@@ -106,16 +110,15 @@ I_mld_g = numpy.zeros((27))
 z_fin   = numpy.zeros((npart,27))
 I_fin   = numpy.zeros((npart,27))
 m_fin   = numpy.zeros((npart,27))
-for D in (19,20,21):
-    for Kz_exp in (0.9,1.0,1.1):
+for D in (10,20,30):
+    for Kz_exp in (2,3,4):
         Kz = 1/numpy.power(10,Kz_exp)
-        for gamma_exp in (23,24,25):
+        for gamma_exp in (12,24,48):
             count          = count+1
             gamma          = gamma_exp*3600
             #gamma   = 3600*numpy.power(2,gamma_exp)
             dimless[count] = D*D/(Kz*gamma)
-            print(dimless)
-            dimless[count] = dimless[count]/(dimless[count]+10)
+            dimless[count] = dimless[count]/(dimless[count]+K_scale)
             results        = run_model(D,Kz,gamma)
             z              = results[0]
             I              = results[1]
@@ -125,8 +128,6 @@ for D in (19,20,21):
             I_fin[:,count] = I[:,-1]
             m_fin[:,count] = I_mem[:,-1]
 
-
-print(dimless)
 
 # ----------- #
 
