@@ -39,7 +39,7 @@ dlt = 60*60*24
 # calculate sine function at dlt
 dlt_fn = math.sin(dlt*2*math.pi/86400)
 # calculate midpoint of light function
-I_avg = I_max*dlt_fn/(dlt_fn-1)
+I_avg = I_max#*dlt_fn/(dlt_fn-1)
 #I_avg = I_max
 # number of timesteps
 niter = 100800
@@ -83,7 +83,10 @@ def run_model(D,Kz,gamma):
             if I0 <= 0:
                 I0 = 0.00001
             # diffuse to new depth, using normally distributed random number
-            z[i,t] = z[i,t-1] + numpy.random.normal(0,math.sqrt(2*Kz*dt),1)
+            delta_z = numpy.random.normal(0,math.sqrt(2*Kz*dt),1)
+            delta_z = numpy.nanmax([-D/2,delta_z])
+            delta_z = numpy.nanmin([ D/2,delta_z])
+            z[i,t] = z[i,t-1] + delta_z
             # reflective boundary condition at sea surface and mixed layer base
             if z[i,t] < 0:
                 z[i,t] = - z[i,t]
@@ -93,6 +96,7 @@ def run_model(D,Kz,gamma):
                 z[i,t] = z[i,t]
             # calculate instantaneous irradiance
             I[i,t] = I0*numpy.exp(-k*z[i,t])
+            #print(I)
             if t == 1:
                 # initialise irradiance memory
                 I_mem[i,t] = I[i,t]
@@ -100,7 +104,7 @@ def run_model(D,Kz,gamma):
                 # update irradiance memory using acclimation timescale gamma
                 I_mem[i,t] = I_mem[i,t-1] + dt*(I[i,t] - I_mem[i,t-1])/gamma
                 # update position memory
-                z_mem[i,t] = - math.log(I_mem[i,t]/I0)/k
+                #z_mem[i,t] = - math.log(I_mem[i,t]/I0)/k
     return z, I, I_mem, I_mld 
 
 #for D in (10,20,30,40,50):
@@ -111,14 +115,15 @@ z_fin   = numpy.zeros((npart,27))
 I_fin   = numpy.zeros((npart,27))
 m_fin   = numpy.zeros((npart,27))
 for D in (10,20,30):
-    for Kz_exp in (2,3,4):
+    for Kz_exp in (1,2,3):
         Kz = 1/numpy.power(10,Kz_exp)
-        for gamma_exp in (12,24,48):
+        for gamma_hrs in (1,4,12):
             count          = count+1
-            gamma          = gamma_exp*3600
+            gamma          = gamma_hrs*3600
             #gamma   = 3600*numpy.power(2,gamma_exp)
             dimless[count] = D*D/(Kz*gamma)
-            dimless[count] = dimless[count]/(dimless[count]+K_scale)
+            dimless_alt    = dimless[count]/(dimless[count]+1)
+            dimless[count] = dimless[count]/(dimless[count]+10)
             results        = run_model(D,Kz,gamma)
             z              = results[0]
             I              = results[1]
@@ -127,6 +132,18 @@ for D in (10,20,30):
             z_fin[:,count] = z[:,-1]
             I_fin[:,count] = I[:,-1]
             m_fin[:,count] = I_mem[:,-1]
+            ### ----------------------------- ###
+            plt.figure()
+            plt.scatter(I_fin[:,count],m_fin[:,count])
+            plt.plot(I_fin[:,count] , I_mld_g[count] + dimless[count]*(I_fin[:,count]-I_mld_g[count]),linestyle='--')
+            plt.plot(I_fin[:,count] , I_mld_g[count] + dimless_alt*(I_fin[:,count]-I_mld_g[count]),linestyle=':')
+            plt.title(dimless[count])
+            m, b = numpy.polyfit(I_fin[:,count],m_fin[:,count],1)
+            plt.plot(I_fin[:,count], m*I_fin[:,count] + b)
+            plt.xlim(0,100)
+            plt.ylim(0,100)
+            plt.grid()
+            plt.savefig('D{}_Kz-{}_tacc_{}.png'.format(D,Kz_exp,gamma_hrs))
 
 
 # ----------- #
