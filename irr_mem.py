@@ -37,14 +37,14 @@ I_max = 100
 # length of daylight
 dlt = 60*60*24
 # calculate sine function at dlt
-dlt_fn = math.sin(dlt*2*math.pi/86400)
+dlt_fn = math.cos(dlt*2*math.pi/86400)
 # calculate midpoint of light function
-I_avg = I_max#*dlt_fn/(dlt_fn-1)
+I_avg = 100#*dlt_fn/(dlt_fn-1)
 #I_avg = I_max
 # number of timesteps
-niter = 100800
+niter = 1440
 # number of phytoplankton cells
-npart = 10
+npart = 100
 # ratio of mixing to adaptation timescale at which
 # the irradiance memory is equally influenced by
 # instantaneous and depth averaged irradiance
@@ -72,14 +72,14 @@ I_mem = numpy.array([[0.0]*niter]*npart)
 
 def run_model(D,Kz,gamma):
     # calculate independent trajectory for each phytoplankton cell
-    I_mld = I_max*(1-numpy.exp(-k*D))/(k*D)
+    I_mld = I_avg*(1-numpy.exp(-k*D))/(k*D)
     for i in range (0,npart):
         # initialise depth, using uniformly distributed random number
         z[i,0] = random.uniform(0,D)
         # loop over number of timesteps
         for t in range (1,niter):
             # calculate surface irradiance
-            I0 = I_avg + (I_max - I_avg)#*math.sin(t*2*math.pi/1440)
+            I0 = I_avg + (I_max - I_avg)*math.cos(t*2*math.pi/144)
             if I0 <= 0:
                 I0 = 0.00001
             # diffuse to new depth, using normally distributed random number
@@ -122,8 +122,9 @@ for D in (10,20,30):
             gamma          = gamma_hrs*3600
             #gamma   = 3600*numpy.power(2,gamma_exp)
             dimless[count] = D*D/(Kz*gamma)
-            dimless_alt    = dimless[count]/(dimless[count]+1)
-            dimless[count] = dimless[count]/(dimless[count]+10)
+            dimless_Kz1    = dimless[count]/(dimless[count]+1)
+            dimless_Kz10 = dimless[count]/(dimless[count]+10)
+            dimless_Kz100 = dimless[count]/(dimless[count]+100)
             results        = run_model(D,Kz,gamma)
             z              = results[0]
             I              = results[1]
@@ -133,16 +134,21 @@ for D in (10,20,30):
             I_fin[:,count] = I[:,-1]
             m_fin[:,count] = I_mem[:,-1]
             ### ----------------------------- ###
-            plt.figure()
-            plt.scatter(I_fin[:,count],m_fin[:,count])
-            plt.plot(I_fin[:,count] , I_mld_g[count] + dimless[count]*(I_fin[:,count]-I_mld_g[count]),linestyle='--')
-            plt.plot(I_fin[:,count] , I_mld_g[count] + dimless_alt*(I_fin[:,count]-I_mld_g[count]),linestyle=':')
-            plt.title(dimless[count])
+            plt.figure(figsize=(10,10))
+            plt.scatter(I_fin[:,count],m_fin[:,count],s=100,alpha=0.5,color='k')
+            #plt.plot(I_fin[:,count] , I_mld_g[count] + dimless_Kz1  *(I_fin[:,count]-I_mld_g[count]),linewidth=2,color=( 27/255,158/255,119/255),label='param, K_zeta=1')
             m, b = numpy.polyfit(I_fin[:,count],m_fin[:,count],1)
-            plt.plot(I_fin[:,count], m*I_fin[:,count] + b)
-            plt.xlim(0,100)
-            plt.ylim(0,100)
+            plt.plot(I_fin[:,count], m*I_fin[:,count] + b, label='lagrangian',linewidth=5,color='k')
+            plt.plot([0,100] , I_mld_g[count] + dimless_Kz1  *([0,100]-I_mld_g[count]),linestyle='--',linewidth=5,color=( 27/255,158/255,119/255),label='param, K_zeta=1')
+            plt.plot([0,100] , I_mld_g[count] + dimless_Kz10 *([0,100]-I_mld_g[count]),linestyle='--',linewidth=5,color=(217/255, 95/255,  2/255),label='param, K_zeta=10')
+            plt.plot([0,100] , I_mld_g[count] + dimless_Kz100*([0,100]-I_mld_g[count]),linestyle='--',linewidth=5,color=(117/255,112/255,179/255),label='param, K_zeta=100')
+            #plt.title(dimless[count])
+            plt.xlim(40,100)
+            plt.ylim(40,100)
+            plt.xticks([50,75,100],fontsize=40)
+            plt.yticks([50,75,100],fontsize=40)
             plt.grid()
+            plt.legend(fontsize=30)
             plt.savefig('D{}_Kz-{}_tacc_{}.png'.format(D,Kz_exp,gamma_hrs))
 
 
